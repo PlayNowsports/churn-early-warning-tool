@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Churn Early-Warning Assistant</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #12201c;
+    --paper: #f6f4ee;
+    --card: #fbfaf5;
+    --line: #d8d2c2;
+    --line-soft: #ebe6d7;
+    --steel: #2c4a45;
+    --steel-dim: #5b7570;
+    --brass: #b8863b;
+    --brass-dim: #e4d3ab;
+    --risk: #9a3324;
+    --risk-bg: #f3e4de;
+    --warn: #b8863b;
+    --warn-bg: #f7ecd4;
+    --ok: #4a6d4c;
+    --ok-bg: #e7ede4;
+    --mono: 'IBM Plex Mono', Consolas, monospace;
+    --sans: 'IBM Plex Sans', Arial, sans-serif;
+    --serif: 'IBM Plex Serif', Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.5;
+    font-size: 14px;
+  }
+  a { color: var(--steel); }
+
+  /* Header */
+  .plate {
+    background: var(--steel);
+    color: var(--paper);
+    padding: 24px 40px 20px;
+    border-bottom: 5px solid var(--brass);
+  }
+  .plate .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--brass-dim);
+    margin-bottom: 6px;
+  }
+  .plate h1 {
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: 24px;
+    margin: 0 0 4px;
+  }
+  .plate .sub {
+    font-size: 13px;
+    color: #cfd8d5;
+    max-width: 720px;
+  }
+  .plate .meta {
+    position: absolute;
+    right: 40px;
+    top: 24px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--brass-dim);
+    text-align: right;
+    letter-spacing: 0.05em;
+  }
+
+  /* Tabs */
+  .tabs {
+    background: var(--card);
+    border-bottom: 1px solid var(--line);
+    padding: 0 40px;
+    display: flex;
+    gap: 0;
+  }
+  .tab {
+    padding: 14px 22px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--steel-dim);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+    user-select: none;
+  }
+  .tab:hover { color: var(--steel); }
+  .tab.active {
+    color: var(--steel);
+    border-bottom-color: var(--brass);
+    font-weight: 600;
+  }
+  .tab-badge {
+    display: inline-block;
+    background: var(--line-soft);
+    color: var(--ink);
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    margin-left: 6px;
+    font-weight: 600;
+  }
+
+  /* Main content */
+  main {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 28px 40px 80px;
+  }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  section {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 24px 28px;
+    margin-bottom: 20px;
+  }
+  section h2 {
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: 18px;
+    margin: 0 0 6px;
+  }
+  section .lede {
+    font-size: 13px;
+    color: var(--steel-dim);
+    margin-bottom: 18px;
+  }
+  section h3 {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--steel);
+    margin: 20px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  /* Forms */
+  label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--steel-dim);
+    margin-bottom: 5px;
+  }
+  input[type="text"], input[type="number"], input[type="password"], select, textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    font-family: var(--sans);
+    font-size: 13px;
+    background: white;
+    color: var(--ink);
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: 2px solid var(--brass);
+    outline-offset: -1px;
+    border-color: var(--brass);
+  }
+  textarea { resize: vertical; min-height: 60px; }
+  .field { margin-bottom: 12px; }
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .field-row.thirds { grid-template-columns: 1fr 1fr 1fr; }
+
+  /* Buttons */
+  button {
+    font-family: var(--sans);
+    font-size: 13px;
+    padding: 8px 16px;
+    border: 1px solid var(--steel);
+    background: var(--steel);
+    color: var(--paper);
+    border-radius: 3px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.15s;
+  }
+  button:hover { background: #1e3835; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.ghost {
+    background: transparent;
+    color: var(--steel);
+  }
+  button.ghost:hover { background: var(--line-soft); }
+  button.danger {
+    background: var(--risk);
+    border-color: var(--risk);
+  }
+  button.danger:hover { background: #7a2818; }
+  button.small { padding: 5px 10px; font-size: 12px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* Rules table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    text-align: left;
+    padding: 10px 12px;
+    background: var(--line-soft);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--steel);
+    font-weight: 600;
+    border-bottom: 1px solid var(--line);
+  }
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: top;
+  }
+  tr.inactive { opacity: 0.45; }
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-family: var(--mono);
+    letter-spacing: 0.04em;
+  }
+  .tag.structured { background: #e0e8e6; color: var(--steel); }
+  .tag.unstructured { background: var(--warn-bg); color: #7a5920; }
+  .tag.critical { background: var(--risk-bg); color: var(--risk); font-weight: 600; }
+  .tag.elevated { background: var(--warn-bg); color: #7a5920; font-weight: 600; }
+  .tag.watch { background: #ede4d0; color: #6b5730; }
+  .tag.healthy { background: var(--ok-bg); color: var(--ok); }
+
+  /* Modal */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(18, 32, 28, 0.5);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--paper);
+    max-width: 560px;
+    width: 92%;
+    max-height: 90vh;
+    overflow-y: auto;
+    border-radius: 4px;
+    padding: 24px 28px;
+    border-top: 5px solid var(--brass);
+  }
+  .modal h3 {
+    font-family: var(--serif);
+    font-size: 18px;
+    margin: 0 0 4px;
+    text-transform: none;
+    letter-spacing: 0;
+    border: none;
+    padding: 0;
+  }
+  .modal .lede {
+    font-size: 12px;
+    color: var(--steel-dim);
+    margin-bottom: 18px;
+  }
+
+  /* Results */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .kpi {
+    background: var(--card);
+    border: 1px solid var(--line);
+    padding: 14px 16px;
+    border-radius: 3px;
+  }
+  .kpi .label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--steel-dim);
+    margin-bottom: 6px;
+  }
+  .kpi .value {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .kpi .sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--steel-dim);
+    margin-top: 4px;
+  }
+  .kpi.critical { border-left: 4px solid var(--risk); }
+  .kpi.elevated { border-left: 4px solid var(--warn); }
+  .kpi.watch { border-left: 4px solid #b9a56d; }
+  .kpi.healthy { border-left: 4px solid var(--ok); }
+
+  .account-row {
+    background: var(--card);
+    border: 1px solid var(--line);
+    padding: 16px 18px;
+    margin-bottom: 10px;
+    border-radius: 3px;
+    display: grid;
+    grid-template-columns: 60px 1fr auto;
+    gap: 16px;
+    align-items: start;
+  }
+  .account-row.critical { border-left: 4px solid var(--risk); }
+  .account-row.elevated { border-left: 4px solid var(--warn); }
+  .account-row.watch { border-left: 4px solid #b9a56d; }
+  .account-row.healthy { border-left: 4px solid var(--ok); }
+  .score-circle {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 700;
+    text-align: center;
+    padding: 8px 0;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+  }
+  .account-name {
+    font-weight: 600;
+    font-size: 15px;
+    margin-bottom: 2px;
+  }
+  .account-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--steel-dim);
+    margin-bottom: 8px;
+  }
+  .fired-rules {
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  .fired-rule {
+    display: inline-block;
+    background: var(--line-soft);
+    padding: 2px 8px;
+    border-radius: 2px;
+    margin: 2px 4px 2px 0;
+    font-size: 11px;
+    font-family: var(--mono);
+  }
+  .fired-rule .weight { color: var(--risk); font-weight: 600; margin-left: 4px; }
+
+  /* Utilities */
+  .muted { color: var(--steel-dim); font-size: 12px; }
+  .small { font-size: 12px; }
+  .mono { font-family: var(--mono); }
+  .flex-between { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .stack > * + * { margin-top: 12px; }
+  .hidden { display: none !important; }
+  .progress-bar {
+    height: 6px;
+    background: var(--line-soft);
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 12px 0;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--brass);
+    transition: width 0.3s;
+  }
+  .callout {
+    padding: 12px 16px;
+    background: var(--warn-bg);
+    border-left: 3px solid var(--brass);
+    font-size: 13px;
+    border-radius: 2px;
+    margin: 12px 0;
+  }
+  .callout.info { background: #e6ecec; border-left-color: var(--steel); }
+  .callout.danger { background: var(--risk-bg); border-left-color: var(--risk); }
+</style>
+</head>
+<body>
+
+<div class="plate" style="position:relative;">
+  <div class="eyebrow">Renewals Intelligence · Reusable Analyst Tool</div>
+  <h1>Churn Early-Warning Assistant</h1>
+  <div class="sub">Upload a renewal pipeline export, apply calibrated risk rules, and produce a ranked churn watch-list combining structured signals with AI-extracted patterns from CSM notes and call highlights.</div>
+  <div class="meta">v1.0 · <span id="ruleCountHeader">0</span> rules loaded<br><span id="timestamp"></span></div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-view="rules">Validation Rules <span class="tab-badge" id="ruleCountBadge">0</span></div>
+  <div class="tab" data-view="upload">Upload Data</div>
+  <div class="tab" data-view="run">Run Analysis</div>
+  <div class="tab" data-view="results">Results <span class="tab-badge" id="resultCountBadge">0</span></div>
+  <div class="tab" data-view="help">Help</div>
+</div>
+
+<main>
+
+<!-- ============ RULES VIEW ============ -->
+<div class="view active" id="view-rules">
+  <section>
+    <div class="flex-between">
+      <div>
+        <h2>Validation Rules</h2>
+        <div class="lede">Rules are the calibrated logic that turns raw account data into a risk score. They persist in your browser between sessions.</div>
+      </div>
+      <div class="btn-row">
+        <button onclick="openRuleModal()">+ New Rule</button>
+        <button class="ghost" onclick="exportRules()">Export JSON</button>
+        <button class="ghost" onclick="document.getElementById('rulesImportFile').click()">Import JSON</button>
+        <input type="file" id="rulesImportFile" accept=".json" style="display:none" onchange="importRules(event)">
+        <button class="ghost" onclick="resetRules()">Reset to Defaults</button>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <strong>How scoring works:</strong> Each active rule that matches an account contributes its score to the total. Totals map to tiers: <span class="tag critical">Critical 60+</span> <span class="tag elevated">Elevated 30–59</span> <span class="tag watch">Watch 15–29</span> <span class="tag healthy">Healthy &lt;15</span>. Unstructured rules use AI to detect patterns in text fields — those require an API key when you run the analysis.
+    </div>
+
+    <table id="rulesTable">
+      <thead>
+        <tr>
+          <th style="width:24px;"></th>
+          <th>Name</th>
+          <th style="width:110px;">Type</th>
+          <th>Condition</th>
+          <th style="width:70px;">Score</th>
+          <th style="width:140px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="rulesTableBody"></tbody>
+    </table>
+  </section>
+</div>
+
+<!-- ============ UPLOAD VIEW ============ -->
+<div class="view" id="view-upload">
+  <section>
+    <h2>Upload Renewal Pipeline</h2>
+    <div class="lede">Accepts .xlsx, .xls, or .csv exports. Data stays in your browser — nothing is uploaded to a server.</div>
+
+    <div class="field">
+      <label>Data file</label>
+      <input type="file" id="dataFile" accept=".xlsx,.xls,.csv" onchange="handleFileUpload(event)">
+    </div>
+
+    <div id="uploadStatus" class="hidden"></div>
+
+    <div id="dataPreview" class="hidden">
+      <h3>Preview · <span id="rowCount" class="mono"></span> rows · <span id="colCount" class="mono"></span> columns</h3>
+      <div style="overflow-x:auto; max-height:300px; border:1px solid var(--line);">
+        <table id="previewTable" style="font-size:12px;"></table>
+      </div>
+
+      <h3>Column Mapping</h3>
+      <div class="lede small">Map your file's columns to the fields the rule engine expects. Leave any as "-- none --" if not applicable.</div>
+      <div id="columnMapping"></div>
+    </div>
+  </section>
+</div>
+
+<!-- ============ RUN VIEW ============ -->
+<div class="view" id="view-run">
+  <section>
+    <h2>Run Analysis</h2>
+    <div class="lede">The tool applies structured rules deterministically in your browser. If you have unstructured (AI) rules enabled, it will call the Anthropic API using the key you provide.</div>
+
+    <div id="runReadiness"></div>
+
+    <h3>Anthropic API Key <span class="muted" style="text-transform:none;letter-spacing:0;">(optional — only needed for AI rules)</span></h3>
+    <div class="field">
+      <label>API Key (sk-ant-...)</label>
+      <input type="password" id="apiKey" placeholder="sk-ant-api03-...">
+      <div class="small muted" style="margin-top:6px;">
+        Stored in session storage only. Cleared when you close the tab. Direct browser → Anthropic call, no proxy.
+        <a href="https://console.anthropic.com/settings/keys" target="_blank">Get a key →</a>
+      </div>
+    </div>
+
+    <h3>Batching</h3>
+    <div class="field-row">
+      <div>
+        <label>Accounts per AI batch</label>
+        <input type="number" id="batchSize" value="25" min="1" max="50">
+      </div>
+      <div>
+        <label>Model</label>
+        <select id="aiModel">
+          <option value="claude-sonnet-4-5">claude-sonnet-4-5</option>
+          <option value="claude-haiku-4-5">claude-haiku-4-5 (faster/cheaper)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:20px;">
+      <button id="runBtn" onclick="runAnalysis()">Run Analysis</button>
+      <button class="ghost" onclick="switchView('results')">View Prior Results</button>
+    </div>
+
+    <div id="runProgress" class="hidden" style="margin-top:20px;">
+      <div class="progress-bar"><div class="progress-bar-fill" id="progressFill" style="width:0%;"></div></div>
+      <div class="mono small" id="progressText"></div>
+    </div>
+  </section>
+</div>
+
+<!-- ============ RESULTS VIEW ============ -->
+<div class="view" id="view-results">
+  <section id="noResults">
+    <h2>No Results Yet</h2>
+    <div class="lede">Run the analysis to produce a ranked risk list.</div>
+    <button onclick="switchView('run')">Go to Run Analysis</button>
+  </section>
+
+  <div id="resultsContent" class="hidden">
+    <div class="kpi-row">
+      <div class="kpi critical"><div class="label">Critical</div><div class="value" id="kpiCritical">0</div><div class="sub" id="kpiCriticalArr"></div></div>
+      <div class="kpi elevated"><div class="label">Elevated</div><div class="value" id="kpiElevated">0</div><div class="sub" id="kpiElevatedArr"></div></div>
+      <div class="kpi watch"><div class="label">Watch</div><div class="value" id="kpiWatch">0</div><div class="sub" id="kpiWatchArr"></div></div>
+      <div class="kpi healthy"><div class="label">Healthy</div><div class="value" id="kpiHealthy">0</div><div class="sub" id="kpiHealthyArr"></div></div>
+      <div class="kpi"><div class="label">Total ARR at Risk</div><div class="value" id="kpiTotalRisk">$0</div><div class="sub">Critical + Elevated</div></div>
+    </div>
+
+    <section>
+      <div class="flex-between">
+        <div>
+          <h2>Ranked Risk List</h2>
+          <div class="lede">Sorted by risk score. Click a row to see the full reasoning.</div>
+        </div>
+        <div class="btn-row">
+          <select id="tierFilter" onchange="renderResults()" style="width:150px;">
+            <option value="all">All tiers</option>
+            <option value="critical">Critical only</option>
+            <option value="elevated">Elevated+</option>
+            <option value="watch">Watch+</option>
+          </select>
+          <button class="ghost" onclick="exportResultsCSV()">Export CSV</button>
+        </div>
+      </div>
+      <div id="resultsList"></div>
+    </section>
+  </div>
+</div>
+
+<!-- ============ HELP VIEW ============ -->
+<div class="view" id="view-help">
+  <section>
+    <h2>How to Use This Tool</h2>
+    <div class="stack">
+      <div>
+        <h3>1. Review or Edit Rules</h3>
+        <p>The tool ships with 12 default rules covering both structured signals (Health field, Utilization, Age, Stage) and unstructured patterns (competitor mentions, champion turnover, budget freezes, integration gaps). Edit them, add your own, or reset to defaults. Rules persist in browser storage.</p>
+      </div>
+      <div>
+        <h3>2. Upload Your Pipeline Export</h3>
+        <p>Export renewal opportunities from your CRM as .xlsx or .csv. Map your columns to the standard fields (Account Name, ARR, Health, CSM Notes, etc.). Only the mapped columns are used.</p>
+      </div>
+      <div>
+        <h3>3. Run the Analysis</h3>
+        <p>Structured rules run instantly, in-browser, deterministically. Unstructured rules require an Anthropic API key. Accounts are batched (default 25 per call) to keep costs and latency low.</p>
+      </div>
+      <div>
+        <h3>4. Read the Results</h3>
+        <p>Accounts are tiered Critical / Elevated / Watch / Healthy based on total score. Each account shows which specific rules fired and why — no black-box scoring. Export to CSV for CRM upload or QBR handoff.</p>
+      </div>
+      <div>
+        <h3>Portability</h3>
+        <p>Export your rule set as JSON to move it between machines or version it in git. The tool is a single static HTML file — deployable to GitHub Pages, S3, any CDN, or opened directly from disk.</p>
+      </div>
+      <div>
+        <h3>Privacy</h3>
+        <p>All data processing happens in your browser. The only network call is to <code>api.anthropic.com</code> when unstructured rules are enabled, and that uses your own API key. Nothing is logged or stored on any server.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+</main>
+
+<!-- ============ RULE MODAL ============ -->
+<div class="modal-backdrop" id="ruleModal">
+  <div class="modal">
+    <h3 id="ruleModalTitle">New Rule</h3>
+    <div class="lede">Define what to check, and how many points it adds to the risk score if it matches.</div>
+
+    <div class="field">
+      <label>Rule Name</label>
+      <input type="text" id="ruleName" placeholder="e.g. Health flagged Red">
+    </div>
+
+    <div class="field-row">
+      <div>
+        <label>Rule Type</label>
+        <select id="ruleCategory" onchange="onRuleCategoryChange()">
+          <option value="structured">Structured (deterministic)</option>
+          <option value="unstructured">Unstructured (AI-extracted)</option>
+        </select>
+      </div>
+      <div>
+        <label>Score if Fires</label>
+        <input type="number" id="ruleScore" value="20" min="1" max="100">
+      </div>
+    </div>
+
+    <div id="structuredFields">
+      <div class="field-row">
+        <div>
+          <label>Field</label>
+          <select id="ruleField">
+            <option value="Health">Health</option>
+            <option value="Utilization">Utilization</option>
+            <option value="Age">Age (days)</option>
+            <option value="Stage">Stage</option>
+            <option value="Segment">Segment</option>
+            <option value="Region">Region</option>
+            <option value="ARR">ARR</option>
+          </select>
+        </div>
+        <div>
+          <label>Operator</label>
+          <select id="ruleOperator">
+            <option value="equals">equals</option>
+            <option value="contains">contains</option>
+            <option value="gt">&gt;</option>
+            <option value="gte">≥</option>
+            <option value="lt">&lt;</option>
+            <option value="lte">≤</option>
+            <option value="exists">exists (non-empty)</option>
+            <option value="not_exists">is empty</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Value</label>
+        <input type="text" id="ruleValue" placeholder="e.g. Red, or 0.33, or Closed Lost">
+      </div>
+    </div>
+
+    <div id="unstructuredFields" class="hidden">
+      <div class="field">
+        <label>Pattern Key (short id used in AI output)</label>
+        <input type="text" id="rulePatternKey" placeholder="e.g. competitor_mentioned">
+      </div>
+      <div class="field">
+        <label>Pattern Description (what the AI should look for)</label>
+        <textarea id="rulePatternDesc" placeholder="e.g. Any mention of a competitor being evaluated, a POC with another vendor, or the customer saying they are considering alternatives."></textarea>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Reasoning / Rationale</label>
+      <textarea id="ruleReasoning" placeholder="Why this rule exists — this appears in the results so the analyst downstream can understand the score."></textarea>
+    </div>
+
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-family:var(--sans);font-size:13px;color:var(--ink);">
+        <input type="checkbox" id="ruleActive" checked style="width:auto;"> Rule is active
+      </label>
+    </div>
+
+    <div class="btn-row" style="margin-top:20px;justify-content:flex-end;">
+      <button class="ghost" onclick="closeRuleModal()">Cancel</button>
+      <button onclick="saveRule()">Save Rule</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const STORAGE_KEY = 'churn_tool_rules_v1';
+const RESULTS_KEY = 'churn_tool_results_v1';
+const MAPPING_KEY = 'churn_tool_mapping_v1';
+
+let state = {
+  rules: [],
+  data: [],
+  columns: [],
+  mapping: {},
+  results: [],
+  editingRuleId: null,
+};
+
+// Standard field names the rule engine understands
+const STANDARD_FIELDS = [
+  'Account Name', 'Opportunity Name', 'ARR', 'Health', 'Utilization',
+  'Age', 'Stage', 'Segment', 'Region', 'Close Date',
+  'CSM Notes', 'Gong Highlight', 'Owner'
+];
+
+// ============================================================
+// DEFAULT RULES
+// ============================================================
+function defaultRules() {
+  return [
+    // ---- Structured ----
+    { id: 'r1', name: 'Health flagged Red', category: 'structured', field: 'Health', operator: 'equals', value: 'Red', score: 40, active: true,
+      reasoning: 'Explicit CSM assessment. Highest-signal structured field in most CRMs.' },
+    { id: 'r2', name: 'Health flagged Yellow', category: 'structured', field: 'Health', operator: 'equals', value: 'Yellow', score: 15, active: true,
+      reasoning: 'CSM has raised concern but not escalated to Red.' },
+    { id: 'r3', name: 'Utilization below 33%', category: 'structured', field: 'Utilization', operator: 'lt', value: '0.33', score: 25, active: true,
+      reasoning: 'Below the "engaged customer" floor. Historical churn correlates strongly.' },
+    { id: 'r4', name: 'Utilization below 15%', category: 'structured', field: 'Utilization', operator: 'lt', value: '0.15', score: 15, active: true,
+      reasoning: 'Extreme non-usage — stacks with the sub-33% rule to double-flag dormant accounts.' },
+    { id: 'r5', name: 'Renewal past due', category: 'structured', field: 'Age', operator: 'gt', value: '365', score: 15, active: true,
+      reasoning: 'Opportunity age exceeds a year — either stalled or already lapsed.' },
+    { id: 'r6', name: 'Stage = Closed Lost', category: 'structured', field: 'Stage', operator: 'equals', value: 'Closed Lost', score: 100, active: true,
+      reasoning: 'Deterministic. Marks the account as already-churned for calibration comparisons.' },
+    // ---- Unstructured / AI ----
+    { id: 'r7', name: 'Competitor mentioned', category: 'unstructured', patternKey: 'competitor_mentioned', score: 25, active: true,
+      patternDesc: 'Any mention of a competitor being evaluated, a POC with another vendor, or the customer saying they are considering alternatives.',
+      reasoning: 'Active competitive evaluation is one of the strongest leading indicators of churn.' },
+    { id: 'r8', name: 'Champion turnover', category: 'unstructured', patternKey: 'champion_turnover', score: 25, active: true,
+      patternDesc: 'Mention of the primary champion, sponsor, or executive contact leaving the company, changing roles, or being unresponsive.',
+      reasoning: 'Losing the internal advocate historically precedes churn by one to two quarters.' },
+    { id: 'r9', name: 'Budget freeze / cut', category: 'unstructured', patternKey: 'budget_pressure', score: 20, active: true,
+      patternDesc: 'Mention of a budget freeze, cost-cutting initiative, hiring freeze, layoff, or pressure to reduce vendor spend.',
+      reasoning: 'Budget signals often trigger involuntary downsell even from happy customers.' },
+    { id: 'r10', name: 'Integration or product gap', category: 'unstructured', patternKey: 'product_gap', score: 15, active: true,
+      patternDesc: 'Mention of a specific integration missing, a feature request that is blocking usage, or the customer explicitly saying the product does not do what they need.',
+      reasoning: 'Structural product-fit issues rarely resolve inside a renewal cycle.' },
+    { id: 'r11', name: 'M&A / restructuring', category: 'unstructured', patternKey: 'ma_event', score: 15, active: true,
+      patternDesc: 'Mention of an acquisition, merger, spin-off, restructuring, or parent-company change affecting the customer.',
+      reasoning: 'M&A events trigger vendor consolidation reviews — high uncertainty regardless of relationship health.' },
+    { id: 'r12', name: 'Explicit downsell / cancellation intent', category: 'unstructured', patternKey: 'churn_intent', score: 30, active: true,
+      patternDesc: 'Direct statement of intent to reduce seats, cancel, not renew, or terminate the contract.',
+      reasoning: 'The clearest possible signal. Weighted below "already Closed Lost" but above competitive evaluation.' },
+  ];
+}
+
+// ============================================================
+// STORAGE
+// ============================================================
+function loadRules() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      state.rules = JSON.parse(stored);
+    } else {
+      state.rules = defaultRules();
+      saveRules();
+    }
+  } catch(e) {
+    console.error('Failed to load rules:', e);
+    state.rules = defaultRules();
+  }
+}
+function saveRules() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.rules));
+    updateRuleCount();
+  } catch(e) {
+    alert('Could not save rules to browser storage: ' + e.message);
+  }
+}
+function loadResults() {
+  try {
+    const stored = localStorage.getItem(RESULTS_KEY);
+    if (stored) state.results = JSON.parse(stored);
+  } catch(e) { state.results = []; }
+}
+function saveResults() {
+  try { localStorage.setItem(RESULTS_KEY, JSON.stringify(state.results)); }
+  catch(e) { console.warn('Could not persist results:', e); }
+}
+function loadMapping() {
+  try {
+    const stored = localStorage.getItem(MAPPING_KEY);
+    if (stored) state.mapping = JSON.parse(stored);
+  } catch(e) { state.mapping = {}; }
+}
+function saveMapping() {
+  try { localStorage.setItem(MAPPING_KEY, JSON.stringify(state.mapping)); }
+  catch(e) {}
+}
+
+// ============================================================
+// UI HELPERS
+// ============================================================
+function switchView(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === name));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
+  if (name === 'results') renderResults();
+  if (name === 'run') updateRunReadiness();
+}
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
+
+function updateRuleCount() {
+  const active = state.rules.filter(r => r.active).length;
+  const total = state.rules.length;
+  document.getElementById('ruleCountBadge').textContent = total;
+  document.getElementById('ruleCountHeader').textContent = active + ' / ' + total;
+}
+
+function updateResultCount() {
+  document.getElementById('resultCountBadge').textContent = state.results.length || '';
+}
+
+// ============================================================
+// RULES CRUD
+// ============================================================
+function renderRulesTable() {
+  const tbody = document.getElementById('rulesTableBody');
+  if (state.rules.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--steel-dim);">No rules yet. Click <strong>+ New Rule</strong> or <strong>Reset to Defaults</strong>.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = state.rules.map(r => {
+    const condition = r.category === 'structured'
+      ? `${r.field} ${opDisplay(r.operator)} ${r.value || ''}`
+      : `<span class="muted">AI:</span> ${r.patternKey}`;
+    return `
+      <tr class="${r.active ? '' : 'inactive'}">
+        <td><input type="checkbox" ${r.active ? 'checked' : ''} onchange="toggleRule('${r.id}')"></td>
+        <td>
+          <div style="font-weight:600;">${escapeHtml(r.name)}</div>
+          <div class="small muted">${escapeHtml(r.reasoning || '').slice(0, 90)}${r.reasoning && r.reasoning.length > 90 ? '…' : ''}</div>
+        </td>
+        <td><span class="tag ${r.category}">${r.category}</span></td>
+        <td class="mono small">${condition}</td>
+        <td><strong>+${r.score}</strong></td>
+        <td>
+          <button class="ghost small" onclick="editRule('${r.id}')">Edit</button>
+          <button class="ghost small" onclick="deleteRule('${r.id}')" style="color:var(--risk);">Delete</button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+function opDisplay(op) {
+  return { equals:'=', contains:'⊃', gt:'>', gte:'≥', lt:'<', lte:'≤', exists:'≠∅', not_exists:'=∅' }[op] || op;
+}
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function openRuleModal(ruleId) {
+  state.editingRuleId = ruleId || null;
+  const r = ruleId ? state.rules.find(x => x.id === ruleId) : null;
+  document.getElementById('ruleModalTitle').textContent = r ? 'Edit Rule' : 'New Rule';
+  document.getElementById('ruleName').value = r ? r.name : '';
+  document.getElementById('ruleCategory').value = r ? r.category : 'structured';
+  document.getElementById('ruleScore').value = r ? r.score : 20;
+  document.getElementById('ruleField').value = r ? r.field || 'Health' : 'Health';
+  document.getElementById('ruleOperator').value = r ? r.operator || 'equals' : 'equals';
+  document.getElementById('ruleValue').value = r ? r.value || '' : '';
+  document.getElementById('rulePatternKey').value = r ? r.patternKey || '' : '';
+  document.getElementById('rulePatternDesc').value = r ? r.patternDesc || '' : '';
+  document.getElementById('ruleReasoning').value = r ? r.reasoning || '' : '';
+  document.getElementById('ruleActive').checked = r ? r.active !== false : true;
+  onRuleCategoryChange();
+  document.getElementById('ruleModal').classList.add('open');
+}
+function closeRuleModal() {
+  document.getElementById('ruleModal').classList.remove('open');
+  state.editingRuleId = null;
+}
+function onRuleCategoryChange() {
+  const cat = document.getElementById('ruleCategory').value;
+  document.getElementById('structuredFields').classList.toggle('hidden', cat !== 'structured');
+  document.getElementById('unstructuredFields').classList.toggle('hidden', cat !== 'unstructured');
+}
+function editRule(id) { openRuleModal(id); }
+
+function saveRule() {
+  const name = document.getElementById('ruleName').value.trim();
+  const category = document.getElementById('ruleCategory').value;
+  const score = parseInt(document.getElementById('ruleScore').value, 10);
+
+  // Validation
+  if (!name) { alert('Rule name required'); return; }
+  if (isNaN(score) || score < 1) { alert('Score must be a positive integer'); return; }
+  if (category === 'structured') {
+    const op = document.getElementById('ruleOperator').value;
+    const val = document.getElementById('ruleValue').value;
+    if (op !== 'exists' && op !== 'not_exists' && !val) {
+      alert('Value required for this operator'); return;
+    }
+  } else {
+    if (!document.getElementById('rulePatternKey').value.trim()) { alert('Pattern key required for AI rules'); return; }
+    if (!document.getElementById('rulePatternDesc').value.trim()) { alert('Pattern description required'); return; }
+    // Enforce pattern key uniqueness (except for the rule being edited)
+    const key = document.getElementById('rulePatternKey').value.trim();
+    const conflict = state.rules.find(r => r.patternKey === key && r.id !== state.editingRuleId);
+    if (conflict) { alert('Pattern key already used by: ' + conflict.name); return; }
+  }
+
+  const rule = {
+    id: state.editingRuleId || 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    name,
+    category,
+    score,
+    active: document.getElementById('ruleActive').checked,
+    reasoning: document.getElementById('ruleReasoning').value.trim(),
+    updated: new Date().toISOString(),
+  };
+  if (category === 'structured') {
+    rule.field = document.getElementById('ruleField').value;
+    rule.operator = document.getElementById('ruleOperator').value;
+    rule.value = document.getElementById('ruleValue').value.trim();
+  } else {
+    rule.patternKey = document.getElementById('rulePatternKey').value.trim();
+    rule.patternDesc = document.getElementById('rulePatternDesc').value.trim();
+  }
+
+  if (state.editingRuleId) {
+    const idx = state.rules.findIndex(r => r.id === state.editingRuleId);
+    rule.created = state.rules[idx].created || new Date().toISOString();
+    state.rules[idx] = rule;
+  } else {
+    rule.created = new Date().toISOString();
+    state.rules.push(rule);
+  }
+  saveRules();
+  renderRulesTable();
+  closeRuleModal();
+}
+
+function deleteRule(id) {
+  const r = state.rules.find(x => x.id === id);
+  if (!r) return;
+  if (!confirm('Delete rule "' + r.name + '"?')) return;
+  state.rules = state.rules.filter(x => x.id !== id);
+  saveRules();
+  renderRulesTable();
+}
+
+function toggleRule(id) {
+  const r = state.rules.find(x => x.id === id);
+  if (!r) return;
+  r.active = !r.active;
+  saveRules();
+  renderRulesTable();
+}
+
+function resetRules() {
+  if (!confirm('Reset to 12 default rules? This overwrites your current rule set.')) return;
+  state.rules = defaultRules();
+  saveRules();
+  renderRulesTable();
+}
+
+function exportRules() {
+  const blob = new Blob([JSON.stringify(state.rules, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'churn-rules-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importRules(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (!Array.isArray(imported)) throw new Error('File is not a rule array');
+      // Basic validation of each rule
+      imported.forEach((r, i) => {
+        if (!r.name || !r.category || typeof r.score !== 'number') {
+          throw new Error(`Rule ${i} missing name/category/score`);
+        }
+      });
+      if (!confirm(`Replace current ${state.rules.length} rules with ${imported.length} imported rules?`)) return;
+      state.rules = imported;
+      saveRules();
+      renderRulesTable();
+      alert('Imported ' + imported.length + ' rules.');
+    } catch(err) {
+      alert('Import failed: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// ============================================================
+// DATA UPLOAD
+// ============================================================
+function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const status = document.getElementById('uploadStatus');
+  status.classList.remove('hidden');
+  status.innerHTML = '<div class="callout info">Reading file…</div>';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type: 'array'});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, {defval: null});
+      if (rows.length === 0) throw new Error('File contains no rows');
+      state.data = rows;
+      state.columns = Object.keys(rows[0]);
+      status.innerHTML = `<div class="callout" style="background:var(--ok-bg);border-left-color:var(--ok);">✓ Loaded ${rows.length} rows, ${state.columns.length} columns</div>`;
+      renderDataPreview();
+      renderColumnMapping();
+      document.getElementById('dataPreview').classList.remove('hidden');
+    } catch(err) {
+      status.innerHTML = '<div class="callout danger">Failed to parse: ' + escapeHtml(err.message) + '</div>';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderDataPreview() {
+  const t = document.getElementById('previewTable');
+  const preview = state.data.slice(0, 5);
+  document.getElementById('rowCount').textContent = state.data.length;
+  document.getElementById('colCount').textContent = state.columns.length;
+  t.innerHTML = `
+    <thead><tr>${state.columns.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead>
+    <tbody>${preview.map(row => `<tr>${state.columns.map(c => `<td>${escapeHtml(String(row[c] == null ? '' : row[c])).slice(0, 60)}</td>`).join('')}</tr>`).join('')}</tbody>
+  `;
+}
+
+function renderColumnMapping() {
+  const container = document.getElementById('columnMapping');
+  // Auto-guess mapping from column names
+  const autoMap = {};
+  STANDARD_FIELDS.forEach(std => {
+    const stdLower = std.toLowerCase().replace(/\s+/g, '');
+    const match = state.columns.find(c => c.toLowerCase().replace(/\s+/g, '').includes(stdLower)
+      || stdLower.includes(c.toLowerCase().replace(/\s+/g, '')));
+    if (match) autoMap[std] = match;
+  });
+  // Merge with saved mapping (saved wins for anything user set previously)
+  const finalMap = { ...autoMap, ...state.mapping };
+  state.mapping = finalMap;
+
+  container.innerHTML = '<div class="field-row thirds">' +
+    STANDARD_FIELDS.map(std => `
+      <div>
+        <label>${escapeHtml(std)}</label>
+        <select onchange="updateMapping('${escapeHtml(std)}', this.value)">
+          <option value="">-- none --</option>
+          ${state.columns.map(c => `<option value="${escapeHtml(c)}" ${finalMap[std] === c ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+        </select>
+      </div>
+    `).join('') + '</div>';
+}
+
+function updateMapping(std, col) {
+  if (col) state.mapping[std] = col;
+  else delete state.mapping[std];
+  saveMapping();
+}
+
+function getFieldValue(row, standardField) {
+  const col = state.mapping[standardField];
+  if (!col) return null;
+  return row[col];
+}
+
+// ============================================================
+// RUN ANALYSIS
+// ============================================================
+function updateRunReadiness() {
+  const el = document.getElementById('runReadiness');
+  const activeRules = state.rules.filter(r => r.active);
+  const structuredCount = activeRules.filter(r => r.category === 'structured').length;
+  const unstructuredCount = activeRules.filter(r => r.category === 'unstructured').length;
+  const dataOk = state.data.length > 0;
+  const mappingOk = state.mapping['Account Name'] || state.mapping['Opportunity Name'];
+
+  let html = '<div class="callout ' + (dataOk && mappingOk ? 'info' : 'danger') + '">';
+  html += `<strong>Ready to run:</strong> ${dataOk ? '✓' : '✗'} data loaded (${state.data.length} rows) · `;
+  html += `${mappingOk ? '✓' : '✗'} account name mapped · `;
+  html += `${activeRules.length} active rules (${structuredCount} structured, ${unstructuredCount} AI)`;
+  if (!dataOk) html += '<br><em>Go to Upload Data first.</em>';
+  else if (!mappingOk) html += '<br><em>Map "Account Name" or "Opportunity Name" on the Upload tab.</em>';
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+async function runAnalysis() {
+  const activeRules = state.rules.filter(r => r.active);
+  const structuredRules = activeRules.filter(r => r.category === 'structured');
+  const unstructuredRules = activeRules.filter(r => r.category === 'unstructured');
+
+  if (state.data.length === 0) { alert('Upload data first'); switchView('upload'); return; }
+  if (activeRules.length === 0) { alert('Enable at least one rule'); switchView('rules'); return; }
+
+  const apiKey = document.getElementById('apiKey').value.trim();
+  const needsApi = unstructuredRules.length > 0;
+  if (needsApi && !apiKey) {
+    if (!confirm(`You have ${unstructuredRules.length} AI rules enabled but no API key.\n\nRun with structured rules only?`)) return;
+  }
+
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('runProgress').classList.remove('hidden');
+  const progressFill = document.getElementById('progressFill');
+  const progressText = document.getElementById('progressText');
+
+  // Step 1: structured scoring
+  progressText.textContent = 'Applying structured rules…';
+  progressFill.style.width = '10%';
+  await sleep(50);
+
+  const results = state.data.map((row, i) => {
+    const account = {
+      idx: i,
+      name: getFieldValue(row, 'Account Name') || getFieldValue(row, 'Opportunity Name') || `Row ${i+1}`,
+      opportunity: getFieldValue(row, 'Opportunity Name') || '',
+      arr: parseFloat(getFieldValue(row, 'ARR')) || 0,
+      segment: getFieldValue(row, 'Segment') || '',
+      region: getFieldValue(row, 'Region') || '',
+      owner: getFieldValue(row, 'Owner') || '',
+      stage: getFieldValue(row, 'Stage') || '',
+      health: getFieldValue(row, 'Health') || '',
+      closeDate: getFieldValue(row, 'Close Date') || '',
+      csmNotes: getFieldValue(row, 'CSM Notes') || '',
+      gongHighlight: getFieldValue(row, 'Gong Highlight') || '',
+      firedRules: [],
+      score: 0,
+    };
+    structuredRules.forEach(rule => {
+      if (evaluateStructuredRule(rule, row)) {
+        account.firedRules.push({ name: rule.name, score: rule.score, reasoning: rule.reasoning, category: 'structured' });
+        account.score += rule.score;
+      }
+    });
+    return account;
+  });
+
+  progressFill.style.width = '30%';
+  progressText.textContent = `${results.length} accounts scored on structured rules.`;
+  await sleep(100);
+
+  // Step 2: unstructured / AI
+  if (needsApi && apiKey && unstructuredRules.length > 0) {
+    const batchSize = parseInt(document.getElementById('batchSize').value, 10) || 25;
+    const model = document.getElementById('aiModel').value;
+    const batches = [];
+    for (let i = 0; i < results.length; i += batchSize) batches.push(results.slice(i, i + batchSize));
+
+    for (let b = 0; b < batches.length; b++) {
+      progressText.textContent = `AI extraction: batch ${b + 1} of ${batches.length}…`;
+      progressFill.style.width = (30 + (b / batches.length) * 65) + '%';
+      try {
+        const tags = await extractPatternsAI(batches[b], unstructuredRules, apiKey, model);
+        batches[b].forEach((acc, i) => {
+          const accTags = (tags[i] && tags[i].tags) || [];
+          unstructuredRules.forEach(rule => {
+            if (accTags.includes(rule.patternKey)) {
+              acc.firedRules.push({ name: rule.name, score: rule.score, reasoning: rule.reasoning, category: 'unstructured' });
+              acc.score += rule.score;
+            }
+          });
+        });
+      } catch(err) {
+        console.error('Batch failed:', err);
+        progressText.textContent = `Batch ${b+1} failed (${err.message}). Continuing with structured-only for remaining accounts.`;
+        break;
+      }
+    }
+  }
+
+  // Step 3: tiering + sort
+  results.forEach(r => { r.tier = scoreToTier(r.score); });
+  results.sort((a, b) => b.score - a.score);
+  state.results = results;
+  saveResults();
+
+  progressFill.style.width = '100%';
+  progressText.textContent = 'Done.';
+  document.getElementById('runBtn').disabled = false;
+  updateResultCount();
+  setTimeout(() => { switchView('results'); }, 400);
+}
+
+function evaluateStructuredRule(rule, row) {
+  const raw = getFieldValue(row, rule.field);
+  if (raw == null || raw === '') return rule.operator === 'not_exists';
+  const val = String(raw).trim();
+  const target = rule.value;
+  switch(rule.operator) {
+    case 'equals': return val.toLowerCase() === String(target).toLowerCase();
+    case 'contains': return val.toLowerCase().includes(String(target).toLowerCase());
+    case 'gt': return parseFloat(val) > parseFloat(target);
+    case 'gte': return parseFloat(val) >= parseFloat(target);
+    case 'lt': return parseFloat(val) < parseFloat(target);
+    case 'lte': return parseFloat(val) <= parseFloat(target);
+    case 'exists': return true;
+    case 'not_exists': return false;
+    default: return false;
+  }
+}
+
+function scoreToTier(score) {
+  if (score >= 60) return 'critical';
+  if (score >= 30) return 'elevated';
+  if (score >= 15) return 'watch';
+  return 'healthy';
+}
+
+async function extractPatternsAI(batch, unstructuredRules, apiKey, model) {
+  // Build the prompt
+  const patterns = unstructuredRules.map(r => `- "${r.patternKey}": ${r.patternDesc}`).join('\n');
+  const accountsBlock = batch.map((a, i) =>
+    `[${i}] ${a.name}\nCSM Notes: ${(a.csmNotes || '').slice(0, 500)}\nGong: ${(a.gongHighlight || '').slice(0, 500)}`
+  ).join('\n\n---\n\n');
+
+  const systemPrompt = `You are analyzing renewal account text for specific risk patterns. For each account, return the pattern keys that apply. Return ONLY JSON, no prose.`;
+
+  const userPrompt = `Patterns to look for:
+${patterns}
+
+Accounts:
+${accountsBlock}
+
+Return JSON in this exact shape:
+{"results": [{"idx": 0, "tags": ["pattern_key_1", "pattern_key_2"]}, ...]}
+
+Include an entry for every account (0 through ${batch.length - 1}), even if tags is empty. Only include pattern keys that clearly apply based on the text.`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: model,
+      max_tokens: 4000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`API ${response.status}: ${errText.slice(0, 200)}`);
+  }
+  const data = await response.json();
+  const text = data.content[0].text;
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('No JSON in AI response');
+  const parsed = JSON.parse(jsonMatch[0]);
+  // Return as array indexed by idx
+  const arr = new Array(batch.length).fill(null).map((_, i) => ({ idx: i, tags: [] }));
+  (parsed.results || []).forEach(r => {
+    if (r.idx >= 0 && r.idx < batch.length) arr[r.idx] = r;
+  });
+  return arr;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ============================================================
+// RESULTS
+// ============================================================
+function renderResults() {
+  if (state.results.length === 0) {
+    document.getElementById('noResults').classList.remove('hidden');
+    document.getElementById('resultsContent').classList.add('hidden');
+    return;
+  }
+  document.getElementById('noResults').classList.add('hidden');
+  document.getElementById('resultsContent').classList.remove('hidden');
+
+  const tiers = { critical: [], elevated: [], watch: [], healthy: [] };
+  state.results.forEach(r => tiers[r.tier].push(r));
+
+  const sumArr = arr => arr.reduce((s, r) => s + (r.arr || 0), 0);
+  document.getElementById('kpiCritical').textContent = tiers.critical.length;
+  document.getElementById('kpiCriticalArr').textContent = fmtCurrency(sumArr(tiers.critical));
+  document.getElementById('kpiElevated').textContent = tiers.elevated.length;
+  document.getElementById('kpiElevatedArr').textContent = fmtCurrency(sumArr(tiers.elevated));
+  document.getElementById('kpiWatch').textContent = tiers.watch.length;
+  document.getElementById('kpiWatchArr').textContent = fmtCurrency(sumArr(tiers.watch));
+  document.getElementById('kpiHealthy').textContent = tiers.healthy.length;
+  document.getElementById('kpiHealthyArr').textContent = fmtCurrency(sumArr(tiers.healthy));
+  document.getElementById('kpiTotalRisk').textContent = fmtCurrency(sumArr(tiers.critical) + sumArr(tiers.elevated));
+
+  const filter = document.getElementById('tierFilter').value;
+  const filtered = state.results.filter(r => {
+    if (filter === 'all') return true;
+    if (filter === 'critical') return r.tier === 'critical';
+    if (filter === 'elevated') return ['critical','elevated'].includes(r.tier);
+    if (filter === 'watch') return ['critical','elevated','watch'].includes(r.tier);
+    return true;
+  });
+
+  const list = document.getElementById('resultsList');
+  list.innerHTML = filtered.map(r => `
+    <div class="account-row ${r.tier}">
+      <div class="score-circle">${r.score}</div>
+      <div>
+        <div class="account-name">${escapeHtml(r.name)} <span class="tag ${r.tier}">${r.tier}</span></div>
+        <div class="account-meta">
+          ${r.segment ? escapeHtml(r.segment) + ' · ' : ''}${r.region ? escapeHtml(r.region) + ' · ' : ''}${fmtCurrency(r.arr)} ARR${r.owner ? ' · ' + escapeHtml(r.owner) : ''}
+        </div>
+        <div class="fired-rules">
+          ${r.firedRules.length === 0 ? '<span class="muted">No rules fired.</span>' :
+            r.firedRules.map(fr => `<span class="fired-rule">${escapeHtml(fr.name)} <span class="weight">+${fr.score}</span></span>`).join('')}
+        </div>
+      </div>
+      <div></div>
+    </div>
+  `).join('');
+}
+
+function fmtCurrency(n) {
+  if (!n) return '$0';
+  if (n >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
+  return '$' + Math.round(n);
+}
+
+function exportResultsCSV() {
+  const headers = ['Rank','Account','Score','Tier','ARR','Segment','Region','Owner','Fired Rules','Reasoning'];
+  const rows = state.results.map((r, i) => [
+    i + 1,
+    r.name,
+    r.score,
+    r.tier,
+    r.arr,
+    r.segment,
+    r.region,
+    r.owner,
+    r.firedRules.map(f => f.name).join('; '),
+    r.firedRules.map(f => f.reasoning).join(' | '),
+  ]);
+  const csv = [headers, ...rows].map(row =>
+    row.map(cell => {
+      const s = String(cell == null ? '' : cell);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(',')
+  ).join('\n');
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'churn-results-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+loadRules();
+loadResults();
+loadMapping();
+renderRulesTable();
+updateRuleCount();
+updateResultCount();
+document.getElementById('timestamp').textContent = new Date().toLocaleString();
+</script>
+
+</body>
+</html>
